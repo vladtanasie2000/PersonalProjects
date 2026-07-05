@@ -1,0 +1,15 @@
+services:
+  oracle-db:
+    image: gvenzl/oracle-free:latest
+    container_name: oracle-db
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: "YourStrongPassword123"
+      APP_USER: "app_user"
+      APP_USER_PASSWORD: "AppPassword123"
+    volumes:
+      - ~/oracle/oradata:/opt/oracle/oradata
+      - ~/oracle/scripts/startup:/container-entrypoint-startdb.d
+      - ~/oracle/scripts/setup:/container-entrypoint-initdb.d
+    restart: unless-stopped

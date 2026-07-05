@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>User Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 30px auto;
+            line-height: 1.5;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            background: #fafafa;
+        }
+
+        .row {
+            margin: 6px 0;
+        }
+
+        .label {
+            font-weight: bold;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #b36b00;
+            font-weight: bold;
+        }
+
+        .error {
+            color: darkred;
+            font-weight: bold;
+        }
+
+        button {
+            margin: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        input {
+            padding: 6px;
+            width: 250px;
+        }
+
+        hr {
+            margin: 24px 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>User Dashboard</h1>
+
+<hr>
+
+<h2>Login</h2>
+
+<input id="username" type="text" placeholder="Username">
+<br><br>
+
+<input id="password" type="password" placeholder="Password">
+<br><br>
+
+<button onclick="login()">Login</button>
+<button onclick="logout()">Logout</button>
+
+<p id="loginStatus"></p>
+<p id="loginName"></p>
+
+<hr>
+
+<h2>Current Question</h2>
+
+<button onclick="loadQuestion()">Load Active Question</button>
+
+<div id="questionArea" class="card">
+    <p>No question loaded.</p>
+</div>
+
+<hr>
+
+<h2>Result</h2>
+
+<button onclick="loadResult()">View Result</button>
+
+<div id="resultArea" class="card">
+    <p>No result loaded.</p>
+</div>
+
+<hr>
+
+<h2>Scores</h2>
+
+<button onclick="loadMyScore()">My Score</button>
+<button onclick="loadTeamScore()">Team Score</button>
+
+<div id="scoreArea" class="card">
+    <p>No score loaded.</p>
+</div>
+
+<script>
+    function getToken() {
+        return localStorage.getItem("jwt");
+    }
+
+    function setToken(token) {
+        localStorage.setItem("jwt", token);
+    }
+
+    function clearToken() {
+        localStorage.removeItem("jwt");
+    }
+
+    function authHeaders() {
+        return {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + getToken()
+        };
+    }
+
+    function checkLoginStatus() {
+        const token = getToken();
+
+        if (token) {
+            document.getElementById("loginStatus").innerHTML =
+                `<span class="success">Logged in with saved JWT.</span>`;
+        } else {
+            document.getElementById("loginStatus").innerHTML =
+                `<span class="warning">Not logged in.</span>`;
+            document.getElementById("loginName").textContent = "";
+        }
+    }
+
+    async function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value;
+
+        if (!username || !password) {
+            alert("Username and password are required.");
+            return;
+        }
+
+        const body = {
+            name: username,
+            plainPass: password
+        };
+
+        const response = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            alert("Login failed: " + text);
+            return;
+        }
+
+        const data = await response.json();
+
+        setToken(data.token);
+
+        document.getElementById("loginStatus").innerHTML =
+            `<span class="success">Login successful.</span>`;
+        document.getElementById("loginName").textContent =
+            "Logged user: " + username;
+
+        document.getElementById("password").value = "";
+
+        await loadQuestion();
+    }
+
+    function logout() {
+        clearToken();
+
+        document.getElementById("loginStatus").innerHTML =
+            `<span class="warning">Logged out.</span>`;
+        document.getElementById("loginName").textContent = "";
+
+        document.getElementById("questionArea").innerHTML = "<p>No question loaded.</p>";
+        document.getElementById("resultArea").innerHTML = "<p>No result loaded.</p>";
+        document.getElementById("scoreArea").innerHTML = "<p>No score loaded.</p>";
+    }
+
+    async function loadQuestion() {
+        if (!getToken()) {
+            alert("You are not logged in.");
+            return;
+        }
+
+        const response = await fetch("/user", {
+            method: "GET",
+            headers: authHeaders()
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+
+            if (response.status === 401 || response.status === 403) {
+                clearToken();
+                checkLoginStatus();
+            }
+
+            alert("Could not load question. Status: " + response.status + "\n" + text);
+            return;
+        }
+
+        const data = await readResponse(response);
+
+        renderQuestion(data);
+    }
+
+    function renderQuestion(data) {
+        const area = document.getElementById("questionArea");
+
+        if (typeof data === "string") {
+            area.innerHTML = `<p class="warning">${escapeHtml(data)}</p>`;
+            return;
+        }
+
+        if (data.message) {
+            area.innerHTML = `<p class="warning">${escapeHtml(data.message)}</p>`;
+            return;
+        }
+
+        document.getElementById("loginName").textContent =
+            "Logged user: " + data.loggedUser;
+
+        const voteButtons = data.alreadyVoted
+            ? `<p class="success">You already voted on this question.</p>`
+            : `
+                <button onclick="vote(true)">Vote True</button>
+                <button onclick="vote(false)">Vote False</button>
+              `;
+
+        area.innerHTML = `
+            <h3>Active Question</h3>
+
+            <div class="row">
+                <span class="label">Logged user:</span>
+                ${escapeHtml(data.loggedUser)}
+            </div>
+
+            <div class="row">
+                <span class="label">Question ID:</span>
+                ${data.id}
+            </div>
+
+            <div class="row">
+                <span class="label">Question:</span>
+                ${escapeHtml(data.question)}
+            </div>
+
+            <div class="row">
+                <span class="label">Question owner:</span>
+                ${escapeHtml(data.questionUser)}
+            </div>
+
+            <div class="row">
+                <span class="label">Already voted:</span>
+                ${data.alreadyVoted ? "Yes" : "No"}
+            </div>
+
+            <br>
+
+            ${voteButtons}
+        `;
+    }
+
+    async function vote(value) {
+        if (!getToken()) {
+            alert("You are not logged in.");
+            return;
+        }
+
+        const body = {
+            isTrue: value
+        };
+
+        const response = await fetch("/user/vote", {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify(body)
+        });
+
+        const text = await response.text();
+
+        alert(text);
+
+        await loadQuestion();
+    }
+
+    async function loadResult() {
+        if (!getToken()) {
+            alert("You are not logged in.");
+            return;
+        }
+
+        const response = await fetch("/user/result", {
+            method: "GET",
+            headers: authHeaders()
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            alert("Could not load result. Status: " + response.status + "\n" + text);
+            return;
+        }
+
+        const data = await readResponse(response);
+
+        renderResult(data);
+    }
+
+    function renderResult(data) {
+        const area = document.getElementById("resultArea");
+
+        if (typeof data === "string") {
+            area.innerHTML = `<p class="warning">${escapeHtml(data)}</p>`;
+            return;
+        }
+
+        if (data.message) {
+            area.innerHTML = `<p class="warning">${escapeHtml(data.message)}</p>`;
+            return;
+        }
+
+        area.innerHTML = `
+            <h3>Question Result</h3>
+
+            <div class="row">
+                <span class="label">Question ID:</span>
+                ${data.questionId}
+            </div>
+
+            <div class="row">
+                <span class="label">Question:</span>
+                ${escapeHtml(data.question)}
+            </div>
+
+            <div class="row">
+                <span class="label">Team voted:</span>
+                ${escapeHtml(data.votedResult)}
+            </div>
+
+            <div class="row">
+                <span class="label">Actual answer:</span>
+                ${data.actualAnswer ? "True" : "False"}
+            </div>
+
+            <div class="row">
+                <span class="label">Yes votes:</span>
+                ${data.yesVotes}
+            </div>
+
+            <div class="row">
+                <span class="label">Total votes:</span>
+                ${data.totalVotes}
+            </div>
+        `;
+    }
+
+    async function loadMyScore() {
+        if (!getToken()) {
+            alert("You are not logged in.");
+            return;
+        }
+
+        const response = await fetch("/user/score/me", {
+            method: "GET",
+            headers: authHeaders()
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            alert("Could not load score. Status: " + response.status + "\n" + text);
+            return;
+        }
+
+        const data = await readResponse(response);
+
+        if (typeof data === "string") {
+            document.getElementById("scoreArea").innerHTML =
+                `<p class="warning">${escapeHtml(data)}</p>`;
+            return;
+        }
+
+        document.getElementById("scoreArea").innerHTML = `
+            <h3>My Score</h3>
+
+            <div class="row">
+                <span class="label">Name:</span>
+                ${escapeHtml(data.name)}
+            </div>
+
+            <div class="row">
+                <span class="label">Team:</span>
+                ${data.teamName ? escapeHtml(data.teamName) : "No team"}
+            </div>
+
+            <div class="row">
+                <span class="label">Points:</span>
+                ${data.userPoints}
+            </div>
+        `;
+    }
+
+    async function loadTeamScore() {
+        if (!getToken()) {
+            alert("You are not logged in.");
+            return;
+        }
+
+        const response = await fetch("/user/score/team", {
+            method: "GET",
+            headers: authHeaders()
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            alert("Could not load team score. Status: " + response.status + "\n" + text);
+            return;
+        }
+
+        const data = await readResponse(response);
+
+        if (typeof data === "string") {
+            document.getElementById("scoreArea").innerHTML =
+                `<p class="warning">${escapeHtml(data)}</p>`;
+            return;
+        }
+
+        document.getElementById("scoreArea").innerHTML = `
+            <h3>Team Score</h3>
+
+            <div class="row">
+                <span class="label">Team:</span>
+                ${escapeHtml(data.teamName)}
+            </div>
+
+            <div class="row">
+                <span class="label">Points:</span>
+                ${data.teamPoints}
+            </div>
+        `;
+    }
+
+    async function readResponse(response) {
+        const text = await response.text();
+
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return text;
+        }
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) {
+            return "";
+        }
+
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    checkLoginStatus();
+
+    if (getToken()) {
+        loadQuestion();
+    }
+</script>
+
+</body>
+</html>

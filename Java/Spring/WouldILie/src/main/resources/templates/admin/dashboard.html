@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Admin Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 30px auto;
+            line-height: 1.5;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            background: #fafafa;
+        }
+
+        .row {
+            margin: 6px 0;
+        }
+
+        .label {
+            font-weight: bold;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #b36b00;
+            font-weight: bold;
+        }
+
+        .error {
+            color: darkred;
+            font-weight: bold;
+        }
+
+        button {
+            margin: 4px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        input,
+        select {
+            padding: 6px;
+            min-width: 250px;
+        }
+
+        hr {
+            margin: 24px 0;
+        }
+
+        ul {
+            padding-left: 22px;
+        }
+
+        li {
+            margin-bottom: 12px;
+        }
+
+        .question-item {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: white;
+        }
+
+        .team-item {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: white;
+        }
+
+        .checkbox-list label {
+            display: block;
+            margin: 4px 0;
+        }
+
+        .section-actions {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Admin Dashboard</h1>
+
+<hr>
+
+<h2>Admin Login</h2>
+
+<div class="card">
+    <div class="row">
+        <input id="adminUsername" type="text" placeholder="Admin username">
+    </div>
+
+    <div class="row">
+        <input id="adminPassword" type="password" placeholder="Admin password">
+    </div>
+
+    <div class="section-actions">
+        <button onclick="login()">Login</button>
+        <button onclick="logout()">Logout</button>
+        <button onclick="loadState()">Load State</button>
+    </div>
+
+    <p id="loginStatus"></p>
+    <p id="loginName"></p>
+</div>
+
+<hr>
+
+<h2>Add Question To User</h2>
+
+<div class="card">
+    <div class="row">
+        <span class="label">User:</span><br>
+        <select id="questionUser"></select>
+    </div>
+
+    <div class="row">
+        <span class="label">Question:</span><br>
+        <input id="questionText" type="text" placeholder="Question">
+    </div>
+
+    <div class="row">
+        <span class="label">Correct answer:</span><br>
+        <select id="questionIsTrue">
+            <option value="true">True</option>
+            <option value="false">False</option>
+        </select>
+    </div>
+
+    <div class="row">
+        <span class="label">Points:</span><br>
+        <input id="questionPoints" type="number" placeholder="Points">
+    </div>
+
+    <button onclick="addQuestion()">Add Question</button>
+</div>
+
+<hr>
+
+<h2>Assign Users To Existing Team</h2>
+
+<div class="card">
+    <div class="row">
+        <span class="label">Team:</span><br>
+        <select id="existingTeam"></select>
+    </div>
+
+    <div class="row">
+        <span class="label">Users:</span>
+        <div id="assignUsersCheckboxes" class="checkbox-list"></div>
+    </div>
+
+    <button onclick="assignUsersToTeam()">Assign Users</button>
+</div>
+
+<hr>
+
+<h2>Create Team</h2>
+
+<div class="card">
+    <div class="row">
+        <span class="label">Team name:</span><br>
+        <input id="teamName" type="text" placeholder="Team name">
+    </div>
+
+    <div class="row">
+        <span class="label">Users:</span>
+        <div id="usersCheckboxes" class="checkbox-list"></div>
+    </div>
+
+    <button onclick="createTeam()">Create Team</button>
+</div>
+
+<hr>
+
+<h2>Set Active Question</h2>
+
+<div class="card">
+    <ul id="activeQuestionList">
+        <li>No questions loaded.</li>
+    </ul>
+</div>
+
+<hr>
+
+<h2>Mark Active Question As Used</h2>
+
+<div class="card">
+    <button onclick="markUsed()">Mark Active Question As Used</button>
+</div>
+
+<hr>
+
+<h2>Teams</h2>
+
+<div id="teamsArea" class="card">
+    <p>No teams loaded.</p>
+</div>
+
+<hr>
+
+<h2>Questions</h2>
+
+<div id="questions" class="card">
+    <p>No questions loaded.</p>
+</div>
+
+<script>
+    function getToken() {
+        return localStorage.getItem("adminJwt");
+    }
+
+    function setToken(token) {
+        localStorage.setItem("adminJwt", token);
+    }
+
+    function clearToken() {
+        localStorage.removeItem("adminJwt");
+    }
+
+    function authHeaders() {
+        return {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + getToken()
+        };
+    }
+
+    function updateLoginStatus() {
+        const token = getToken();
+
+        if (token) {
+            document.getElementById("loginStatus").innerHTML =
+                `<span class="success">Admin is logged in.</span>`;
+        } else {
+            document.getElementById("loginStatus").innerHTML =
+                `<span class="warning">Admin is not logged in.</span>`;
+            document.getElementById("loginName").textContent = "";
+        }
+    }
+
+    async function login() {
+        const username = document.getElementById("adminUsername").value.trim();
+        const password = document.getElementById("adminPassword").value;
+
+        if (!username || !password) {
+            alert("Username and password are required.");
+            return;
+        }
+
+        const body = {
+            name: username,
+            plainPass: password
+        };
+
+        const response = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            alert("Login failed.\nStatus: " + response.status + "\n" + text);
+            return;
+        }
+
+        const data = await readResponse(response);
+
+        if (!data.token) {
+            alert("Login response did not contain a token.");
+            return;
+        }
+
+        setToken(data.token);
+
+        document.getElementById("adminPassword").value = "";
+        document.getElementById("loginStatus").innerHTML =
+            `<span class="success">Login successful.</span>`;
+        document.getElementById("loginName").textContent =
+            "Logged admin: " + username;
+
+        await loadState();
+    }
+
+    function logout() {
+        clearToken();
+        updateLoginStatus();
+
+        document.getElementById("questionUser").innerHTML = "";
+        document.getElementById("existingTeam").innerHTML = "";
+        document.getElementById("activeQuestionList").innerHTML = "<li>No questions loaded.</li>";
+        document.getElementById("usersCheckboxes").innerHTML = "";
+        document.getElementById("assignUsersCheckboxes").innerHTML = "";
+        document.getElementById("questions").innerHTML = "<p>No questions loaded.</p>";
+        document.getElementById("teamsArea").innerHTML = "<p>No teams loaded.</p>";
+    }
+
+    async function loadState() {
+        try {
+            if (!getToken()) {
+                alert("Admin is not logged in.");
+                return;
+            }
+
+            const response = await fetch("/api/admin/state", {
+                method: "GET",
+                headers: authHeaders()
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+
+                if (response.status === 401 || response.status === 403) {
+                    clearToken();
+                    updateLoginStatus();
+                }
+
+                alert(
+                    "Could not load state.\n" +
+                    "Status: " + response.status + "\n" +
+                    "Response: " + text
+                );
+                return;
+            }
+
+            const state = await readResponse(response);
+
+            console.log("Admin state:", state);
+
+            renderUsers(state.users || []);
+            renderQuestions(state.questions || []);
+            renderTeams(state.teams || []);
+
+        } catch (error) {
+            console.error("Fetch failed:", error);
+            alert("Fetch failed: " + error);
+        }
+    }
+
+    function renderUsers(users) {
+        const select = document.getElementById("questionUser");
+        select.innerHTML = "";
+
+        const createTeamCheckboxes = document.getElementById("usersCheckboxes");
+        createTeamCheckboxes.innerHTML = "";
+
+        const assignTeamCheckboxes = document.getElementById("assignUsersCheckboxes");
+        assignTeamCheckboxes.innerHTML = "";
+
+        if (users.length === 0) {
+            select.innerHTML = `<option value="">No users available</option>`;
+            createTeamCheckboxes.innerHTML = `<p class="warning">No users loaded.</p>`;
+            assignTeamCheckboxes.innerHTML = `<p class="warning">No users loaded.</p>`;
+            return;
+        }
+
+        for (const user of users) {
+            const option = document.createElement("option");
+            option.value = user.name;
+            option.textContent = user.name;
+            select.appendChild(option);
+
+            const createLabel = document.createElement("label");
+            createLabel.innerHTML = `
+                <input type="checkbox" name="teamUsers" value="${escapeHtml(user.name)}">
+                ${escapeHtml(user.name)}
+                <span class="muted">
+                    ${user.teamName ? "(currently: " + escapeHtml(user.teamName) + ")" : "(no team)"}
+                </span>
+            `;
+            createTeamCheckboxes.appendChild(createLabel);
+
+            const assignLabel = document.createElement("label");
+            assignLabel.innerHTML = `
+                <input type="checkbox" name="assignTeamUsers" value="${escapeHtml(user.name)}">
+                ${escapeHtml(user.name)}
+                <span class="muted">
+                    ${user.teamName ? "(currently: " + escapeHtml(user.teamName) + ")" : "(no team)"}
+                </span>
+            `;
+            assignTeamCheckboxes.appendChild(assignLabel);
+        }
+    }
+
+    function renderQuestions(questions) {
+        const activeQuestionList = document.getElementById("activeQuestionList");
+        activeQuestionList.innerHTML = "";
+
+        const questionsDiv = document.getElementById("questions");
+        questionsDiv.innerHTML = "";
+
+        if (questions.length === 0) {
+            activeQuestionList.innerHTML = "<li>No questions loaded.</li>";
+            questionsDiv.innerHTML = "<p>No questions loaded.</p>";
+            return;
+        }
+
+        for (const question of questions) {
+            const li = document.createElement("li");
+
+            const buttonDisabled =
+                question.wasUsed === true ||
+                question.activeQuestion === true;
+
+            const statusText = question.activeQuestion
+                ? `<span class="success">Currently active</span>`
+                : question.wasUsed
+                    ? `<span class="muted">Already used</span>`
+                    : `<span class="warning">Not used yet</span>`;
+
+            li.innerHTML = `
+                <div>
+                    <div class="row">
+                        <span class="label">#${question.id}</span>
+                        ${escapeHtml(question.question)}
+                    </div>
+
+                    <div class="row muted">
+                        User: ${escapeHtml(question.userName)}
+                        | Points: ${question.points}
+                        | Correct answer: ${question.isTrue ? "True" : "False"}
+                        | Status: ${statusText}
+                    </div>
+
+                    <button 
+                        onclick="setActiveQuestion(${question.id})"
+                        ${buttonDisabled ? "disabled" : ""}
+                    >
+                        Set Active
+                    </button>
+                </div>
+            `;
+
+            activeQuestionList.appendChild(li);
+
+            const div = document.createElement("div");
+            div.className = "question-item";
+
+            div.innerHTML = `
+                <div class="row">
+                    <span class="label">Question ID:</span>
+                    ${question.id}
+                </div>
+
+                <div class="row">
+                    <span class="label">Question:</span>
+                    ${escapeHtml(question.question)}
+                </div>
+
+                <div class="row">
+                    <span class="label">User:</span>
+                    ${escapeHtml(question.userName)}
+                </div>
+
+                <div class="row">
+                    <span class="label">Points:</span>
+                    ${question.points}
+                </div>
+
+                <div class="row">
+                    <span class="label">Correct answer:</span>
+                    ${question.isTrue ? "True" : "False"}
+                </div>
+
+                <div class="row">
+                    <span class="label">Active:</span>
+                    ${question.activeQuestion ? "Yes" : "No"}
+                </div>
+
+                <div class="row">
+                    <span class="label">Used:</span>
+                    ${question.wasUsed ? "Yes" : "No"}
+                </div>
+            `;
+
+            questionsDiv.appendChild(div);
+        }
+    }
+
+    function renderTeams(teams) {
+        const teamSelect = document.getElementById("existingTeam");
+        teamSelect.innerHTML = "";
+
+        const teamsArea = document.getElementById("teamsArea");
+        teamsArea.innerHTML = "";
+
+        if (teams.length === 0) {
+            teamSelect.innerHTML = `<option value="">No teams available</option>`;
+            teamsArea.innerHTML = `<p>No teams loaded.</p>`;
+            return;
+        }
+
+        for (const team of teams) {
+            const option = document.createElement("option");
+            option.value = team.teamName;
+            option.textContent = team.teamName;
+            teamSelect.appendChild(option);
+
+            const div = document.createElement("div");
+            div.className = "team-item";
+
+            const users = team.users && team.users.length > 0
+                ? team.users.map(user => escapeHtml(user)).join(", ")
+                : "No users";
+
+            div.innerHTML = `
+                <div class="row">
+                    <span class="label">Team:</span>
+                    ${escapeHtml(team.teamName)}
+                </div>
+
+                <div class="row">
+                    <span class="label">Points:</span>
+                    ${team.points}
+                </div>
+
+                <div class="row">
+                    <span class="label">Users:</span>
+                    ${users}
+                </div>
+            `;
+
+            teamsArea.appendChild(div);
+        }
+    }
+
+    async function addQuestion() {
+        if (!getToken()) {
+            alert("Admin is not logged in.");
+            return;
+        }
+
+        const body = {
+            userName: document.getElementById("questionUser").value,
+            question: document.getElementById("questionText").value.trim(),
+            isTrue: document.getElementById("questionIsTrue").value === "true",
+            points: Number(document.getElementById("questionPoints").value)
+        };
+
+        if (!body.userName) {
+            alert("No user selected.");
+            return;
+        }
+
+        if (!body.question) {
+            alert("Question text is required.");
+            return;
+        }
+
+        if (!body.points && body.points !== 0) {
+            alert("Points are required.");
+            return;
+        }
+
+        const response = await fetch("/api/admin/questions/add", {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify(body)
+        });
+
+        alert(await response.text());
+
+        document.getElementById("questionText").value = "";
+        document.getElementById("questionPoints").value = "";
+
+        await loadState();
+    }
+
+    async function assignUsersToTeam() {
+        if (!getToken()) {
+            alert("Admin is not logged in.");
+            return;
+        }
+
+        const checked = document.querySelectorAll("input[name='assignTeamUsers']:checked");
+        const users = Array.from(checked).map(cb => cb.value);
+
+        const body = {
+            teamName: document.getElementById("existingTeam").value,
+            users: users
+        };
+
+        if (!body.teamName) {
+            alert("No team selected.");
+            return;
+        }
+
+        if (body.users.length === 0) {
+            alert("No users selected.");
+            return;
+        }
+
+        const response = await fetch("/api/admin/teams/assign-users", {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify(body)
+        });
+
+        alert(await response.text());
+        await loadState();
+    }
+
+    async function createTeam() {
+        if (!getToken()) {
+            alert("Admin is not logged in.");
+            return;
+        }
+
+        const checked = document.querySelectorAll("input[name='teamUsers']:checked");
+        const users = Array.from(checked).map(cb => cb.value);
+
+        const body = {
+            teamName: document.getElementById("teamName").value.trim(),
+            points: 0,
+            users: users
+        };
+
+        if (!body.teamName) {
+            alert("Team name is required.");
+            return;
+        }
+
+        const response = await fetch("/api/admin/teams/add", {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify(body)
+        });
+
+        alert(await response.text());
+
+        document.getElementById("teamName").value = "";
+
+        await loadState();
+    }
+
+    async function setActiveQuestion(questionId) {
+        if (!getToken()) {
+            alert("Admin is not logged in.");
+            return;
+        }
+
+        if (!questionId) {
+            alert("No question selected.");
+            return;
+        }
+
+        const body = {
+            id: Number(questionId)
+        };
+
+        const response = await fetch("/api/admin/questions/active", {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify(body)
+        });
+
+        alert(await response.text());
+        await loadState();
+    }
+
+    async function markUsed() {
+        if (!getToken()) {
+            alert("Admin is not logged in.");
+            return;
+        }
+
+        const response = await fetch("/api/admin/questions/mark-used", {
+            method: "POST",
+            headers: authHeaders()
+        });
+
+        alert(await response.text());
+        await loadState();
+    }
+
+    async function readResponse(response) {
+        const text = await response.text();
+
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return text;
+        }
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) {
+            return "";
+        }
+
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    updateLoginStatus();
+
+    if (getToken()) {
+        loadState();
+    }
+</script>
+
+</body>
+</html>
