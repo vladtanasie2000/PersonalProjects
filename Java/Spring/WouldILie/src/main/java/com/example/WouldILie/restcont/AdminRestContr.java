@@ -21,7 +21,6 @@ import com.example.WouldILie.services.QuestionEntityRepoServ;
 import com.example.WouldILie.services.TeamEntityRepoServ;
 import com.example.WouldILie.services.UserEntityRepoServ;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -41,9 +40,10 @@ public class AdminRestContr {
 
   @GetMapping("state")
   public AdminStateDTO getState() {
-    List<AdminQuestionDTO> allQuestions = questionEntityRepoServ.findAll().stream().map(
-        (question) -> new AdminQuestionDTO(question.getId(), question.getQuestion(), question.getIsTrue(),
-            question.getPoints(), question.getUser().getName(), question.getWasUsed(), question.getIsActive()))
+    List<AdminQuestionDTO> allQuestions = questionEntityRepoServ
+        .findAll().stream().sorted((s1, s2) -> Long.compare(s1.getId(), s2.getId())).map(
+            (question) -> new AdminQuestionDTO(question.getId(), question.getQuestion(), question.getIsTrue(),
+                question.getPoints(), question.getUser().getName(), question.getWasUsed(), question.getIsActive()))
         .toList();
     List<AdminUserDTO> allUsers = userEntityRepoServ.findAll().stream()
         .map(user -> new AdminUserDTO(user.getId(), user.getName(),
@@ -58,7 +58,6 @@ public class AdminRestContr {
   }
 
   @PostMapping("/questions/add")
-  @Transactional
   public String addQuestion(@RequestBody AdminQuestionDTO form) {
     UserEntity user = userEntityRepoServ.findByName(form.userName());
     QuestionEntity question = new QuestionEntity();
@@ -73,7 +72,6 @@ public class AdminRestContr {
   }
 
   @PostMapping("/teams/assign-users")
-  @Transactional
   public String assignUsersToExistingTeam(@RequestBody AdminTeamDTO form) {
     TeamEntity team = teamEntityRepoServ.findByTeamName(form.teamName());
 
@@ -92,7 +90,6 @@ public class AdminRestContr {
   }
 
   @PostMapping("/teams/add")
-  @Transactional
   public String createTeam(@RequestBody AdminTeamDTO form) {
     if (teamEntityRepoServ.count() >= 2) {
       return "Only two teams are allowed!";
@@ -115,8 +112,10 @@ public class AdminRestContr {
   }
 
   @PostMapping("/questions/active")
-  @Transactional
   public String setActiveQuestion(@RequestBody AdminQuestionDTO form) {
+    if (questionEntityRepoServ.findByIsActive(Boolean.TRUE).isPresent()) {
+      return "Question already activated, please finish question first";
+    }
     QuestionEntity activeQuestion = questionEntityRepoServ.findById(form.id())
         .orElseThrow(() -> new EntityNotFoundException("Question not found with id: " + form.id()));
     List<QuestionEntity> allQuestions = questionEntityRepoServ.findAll();
@@ -135,7 +134,6 @@ public class AdminRestContr {
   }
 
   @PostMapping("/questions/mark-used")
-  @Transactional
   public String endQuestion() {
     QuestionEntity question = questionEntityRepoServ.findByIsActive(Boolean.TRUE).orElseThrow();
     TeamEntity votingTeam = teamEntityRepoServ.findOpposingTeamByQuestion(question);
@@ -144,12 +142,12 @@ public class AdminRestContr {
     if (votes.size() < requiredVotes) {
       return "Not everyone voted";
     }
-    // update score
-    int score = teamEntityRepoServ.findTeamScore(votingTeam);
-    votingTeam.setTeamPoints(score);
     // update question
     question.setWasUsed(true);
     question.setIsActive(false);
+    // update score
+    int teamScore = teamEntityRepoServ.findTeamScore(votingTeam);
+    votingTeam.setTeamPoints(teamScore);
     teamEntityRepoServ.save(votingTeam);
     questionEntityRepoServ.save(question);
     gameStateService.setLastEndedQuestion(question);

@@ -9,7 +9,6 @@ import com.example.WouldILie.entities.VoteEntity;
 import com.example.WouldILie.repos.QuestionEntityRepo;
 
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 
 @Service
 public class QuestionEntityRepoServ {
@@ -43,12 +42,10 @@ public class QuestionEntityRepoServ {
     return questionEntityRepo.count();
   }
 
-  @Transactional
   public void save(QuestionEntity questionEntity) {
     questionEntityRepo.save(questionEntity);
   }
 
-  @Transactional
   public void saveAll(Iterable<QuestionEntity> questions) {
     questionEntityRepo.saveAll(questions);
   }

@@ -5,12 +5,10 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import com.example.WouldILie.entities.QuestionEntity;
-import com.example.WouldILie.entities.TeamEntity;
 import com.example.WouldILie.entities.UserEntity;
 import com.example.WouldILie.repos.QuestionEntityRepo;
 import com.example.WouldILie.repos.UserEntityRepo;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 
 @Service
 public class UserEntityRepoServ {

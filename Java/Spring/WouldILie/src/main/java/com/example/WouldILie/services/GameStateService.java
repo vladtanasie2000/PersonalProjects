@@ -10,7 +10,6 @@ import com.example.WouldILie.entities.QuestionEntity;
 @Service
 public class GameStateService {
 
-  // this should use atomic
   private AtomicReference<Long> lastEndedQuestionId = new AtomicReference<>();
 
   public void setLastEndedQuestion(QuestionEntity question) {

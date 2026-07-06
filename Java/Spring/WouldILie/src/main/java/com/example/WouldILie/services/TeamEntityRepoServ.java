@@ -5,12 +5,9 @@ import org.springframework.stereotype.Service;
 
 import com.example.WouldILie.entities.QuestionEntity;
 import com.example.WouldILie.entities.TeamEntity;
-import com.example.WouldILie.entities.UserEntity;
 import com.example.WouldILie.entities.VoteEntity;
 import com.example.WouldILie.repos.TeamEntityRepo;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.CriteriaBuilder.In;
-import jakarta.transaction.Transactional;
 
 @Service
 public class TeamEntityRepoServ {
@@ -57,7 +54,6 @@ public class TeamEntityRepoServ {
     return teamEntityRepo.findOpposingTeamByQuestion(questionEntity).orElseThrow(EntityNotFoundException::new);
   }
 
-  @Transactional
   public int findTeamScore(TeamEntity teamEntity) {
     List<Object[]> rows = findStats(teamEntity);
     int score = 0;

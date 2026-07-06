@@ -36,6 +36,7 @@ public class UserRestCont {
   private final UserEntityRepoServ userEntityRepoServ;
   private final VoteEntityRepoServ voteEntityRepoServ;
   private final GameStateService gameStateService;
+  private final TeamEntityRepoServ teamEntityRepoServ;
 
   public UserRestCont(
       QuestionEntityRepoServ questionEntityRepoServ,
@@ -46,6 +47,7 @@ public class UserRestCont {
     this.questionEntityRepoServ = questionEntityRepoServ;
     this.userEntityRepoServ = userEntityRepoServ;
     this.voteEntityRepoServ = voteEntityRepoServ;
+    this.teamEntityRepoServ = teamEntityRepoServ;
     this.gameStateService = gameStateService;
   }
 
@@ -110,12 +112,11 @@ public class UserRestCont {
     if (lastQuestionIdOpt.isEmpty()) {
       return ResponseEntity.ok("No question has ended yet");
     }
-    UserEntity voter = userEntityRepoServ.findByName(principal.getName());
     QuestionEntity question = questionEntityRepoServ.findById(lastQuestionIdOpt.get())
         .orElseThrow(EntityNotFoundException::new);
-    TeamEntity voterTeam = voter.getTeam();
+    TeamEntity votingTeam = teamEntityRepoServ.findOpposingTeamByQuestion(question);
     List<VoteEntity> votes = question.getVote();
-    Integer requiredVotes = voterTeam.getTeamMembers().size();
+    int requiredVotes = votingTeam.getTeamMembers().size();
     if (votes.size() < requiredVotes) {
       return ResponseEntity.ok("Not everyone voted");
     }

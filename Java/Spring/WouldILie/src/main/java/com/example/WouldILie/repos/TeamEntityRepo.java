@@ -6,13 +6,10 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.WouldILie.entities.QuestionEntity;
 import com.example.WouldILie.entities.TeamEntity;
 import com.example.WouldILie.entities.VoteEntity;
 
-@Repository
 public interface TeamEntityRepo extends JpaRepository<TeamEntity, Long> {
 
   @Query("select t from TeamEntity t where t.teamName = :name")

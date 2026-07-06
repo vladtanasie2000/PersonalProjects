@@ -27,7 +27,6 @@ public class VoteEntityRepoServ {
     return VoteEntityRepo.findAll();
   }
 
-  @Transactional
   public void save(VoteEntity voteEntity) {
     VoteEntityRepo.save(voteEntity);
   }
