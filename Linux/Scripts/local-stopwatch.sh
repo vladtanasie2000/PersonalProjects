@@ -24,7 +24,7 @@ systemd-inhibit --what=idle:sleep --why="Stop watch Running" zsh -fc '
   for ((i="${time_min[-1]}"; i>0; i--))
   do
     echo -ne "  $i minutes remaining \033[0K\r"
-    sleep 1
+    sleep 60
   done
   
   echo -ne "TIMES UP \033[0K\r"
